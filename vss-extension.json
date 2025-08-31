@@ -1,0 +1,52 @@
+{
+    "manifestVersion": 1,
+    "id": "labelshub",
+    "publisher": "lirandobrish",
+    "version": "0.1.7",
+    "name": "Labels Hub",
+    "description": "A hub to browse TFVC labels in the current project.",
+    "public": false,
+    "categories": [
+        "Azure Repos"
+    ],
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "icons": {
+        "default": "images/icon.png"
+    },
+    "contributions": [
+        {
+            "id": "labels-hub",
+            "type": "ms.vss-web.hub",
+            "description": "TFVC Labels",
+            "targets": [
+                "ms.vss-code-web.code-hub-group"
+            ],
+            "properties": {
+                "name": "Labels",
+                "uri": "dist/public/hub.html",
+                "order": 100
+            }
+        }
+    ],
+    "files": [
+        {
+            "path": "dist",
+            "addressable": true
+        },
+        {
+            "path": "public",
+            "addressable": true
+        },
+        {
+            "path": "images",
+            "addressable": true
+        }
+    ],
+    "scopes": [
+        "vso.code"
+    ]
+}

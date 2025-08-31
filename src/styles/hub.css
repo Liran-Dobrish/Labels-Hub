@@ -1,0 +1,13 @@
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#323130;color:#fff;padding:8px 12px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:1000}
+.ownerCell{display:flex;align-items:center;gap:8px}
+.titleNoMargin{margin:0}
+.detailsSplit{display:grid;grid-template-columns:300px 1fr;gap:12px;min-height:400px}
+.treePane{border-right:1px solid #eee;padding-right:12px}
+.tree{list-style:none;margin:0;padding-left:12px}
+.treeItem{background:transparent;border:none;cursor:pointer;padding:2px 4px}
+.treeItem.selected{background:#e5f1fb;border-radius:3px}
+.contentPane{min-height:200px}
+.contentList{list-style:none;margin:0;padding:0}
+.contentRow{display:flex;gap:8px;align-items:center;padding:4px 0}
+.mono{font-family:"Cascadia Mono",Consolas,monospace}
+.muted{color:#666}
