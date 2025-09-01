@@ -6,6 +6,7 @@ import './styles/hub.css';
 import './styles/global.css';
 import { Spinner, SpinnerSize } from 'azure-devops-ui/Spinner';
 import { Page } from 'azure-devops-ui/Page';
+import { Header, TitleSize } from "azure-devops-ui/Header";
 import { Surface, SurfaceBackground } from 'azure-devops-ui/Surface';
 import { fetchAllLabels, fetchLabelsFirst } from './services/tfvcService';
 import { TfvcLabelItem } from './types/tfvc';
@@ -43,7 +44,7 @@ export default function Hub() {
       try {
         console.log("Fetching all labels...");
         const full = await fetchAllLabels(500);
-  if (!disposed) { setAll(full); setLoadedAll(true); }
+        if (!disposed) { setAll(full); setLoadedAll(true); }
       } catch (e) {
         console.error(e);
       }
@@ -57,7 +58,14 @@ export default function Hub() {
     return <LabelDetails label={selected} onBack={() => setSelected(null)} />;
   }
 
-  return (<LabelsList items={all} initialCount={Math.min(100, all.length)} onSelect={(i) => setSelected(i)} onLoadedCount={() => {}} loadedAll={loadedAll} />);
+  return (
+    <Page className="flex-grow">
+      <Header title="Labels"
+        description={"A hub to browse TFVC labels in the current project."}
+        titleSize={TitleSize.Large} />
+      <LabelsList items={all} initialCount={Math.min(100, all.length)} onSelect={(i) => setSelected(i)} onLoadedCount={() => { }} loadedAll={loadedAll} />
+    </Page>
+  );
 }
 
 ReactDOM.render(<Hub />, document.getElementById('root'));
