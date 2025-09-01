@@ -12,7 +12,7 @@ import { TfvcLabelItem } from './types/tfvc';
 import { LabelsList } from './components/LabelsList';
 import { LabelDetails } from './components/LabelDetails';
 
-function Hub() {
+export default function Hub() {
   const [all, setAll] = useState<TfvcLabelItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<TfvcLabelItem | null>(null);
