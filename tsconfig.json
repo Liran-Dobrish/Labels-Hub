@@ -1,34 +1,22 @@
 {
-    "compilerOptions": {
-        "target": "ES2020",
-        "lib": [
-            "DOM",
-            "ES2020"
-        ],
-        "jsx": "react",
-        "module": "esnext",
-        "moduleResolution": "node",
-        "noEmit": true,
-        "baseUrl": ".",
-        "paths": {
-            "*": [
-                "src/*"
-            ]
-        },
-        "strict": true,
-        "skipLibCheck": true,
-        "esModuleInterop": true,
-        "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true,
-        "types": [
-            "vite/client"
-        ]
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM", "ES2020", "es5", "es6", "dom", "es2015.promise"],
+    "jsx": "react",
+    "module": "amd",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "baseUrl": ".",
+    "paths": {
+      "*": ["src/*"]
     },
-    "include": [
-        "src"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist"
-    ]
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

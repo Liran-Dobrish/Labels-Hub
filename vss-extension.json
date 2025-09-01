@@ -2,7 +2,8 @@
     "manifestVersion": 1,
     "id": "labelshub",
     "publisher": "lirandobrish",
-    "version": "0.1.7",
+    "version": "0.1.14",
+    "baseUri": "http://localhost:5173",
     "name": "Labels Hub",
     "description": "A hub to browse TFVC labels in the current project.",
     "public": false,
@@ -15,7 +16,7 @@
         }
     ],
     "icons": {
-        "default": "images/icon.png"
+        "default": "dist/images/icon.png"
     },
     "contributions": [
         {
@@ -35,14 +36,6 @@
     "files": [
         {
             "path": "dist",
-            "addressable": true
-        },
-        {
-            "path": "public",
-            "addressable": true
-        },
-        {
-            "path": "images",
             "addressable": true
         }
     ],
