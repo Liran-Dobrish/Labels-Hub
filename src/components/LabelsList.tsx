@@ -1,27 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IListBoxItem } from 'azure-devops-ui/ListBox';
 import { Page } from 'azure-devops-ui/Page';
 import { Surface, SurfaceBackground } from 'azure-devops-ui/Surface';
-import { TextField } from 'azure-devops-ui/TextField';
-import { Dropdown } from 'azure-devops-ui/Dropdown';
-import { Table, ITableColumn, SimpleTableCell } from 'azure-devops-ui/Table';
+import { DropdownFilterBarItem } from 'azure-devops-ui/Dropdown';
+import { Table, ITableColumn, SimpleTableCell, SortOrder, sortItems, ColumnSorting } from 'azure-devops-ui/Table';
 import { ListSelection } from 'azure-devops-ui/List';
-import { Icon } from 'azure-devops-ui/Icon';
-import { MessageCard, MessageCardSeverity } from 'azure-devops-ui/MessageCard';
-import { Button } from 'azure-devops-ui/Button';
 import { Spinner, SpinnerSize } from 'azure-devops-ui/Spinner';
 import { ArrayItemProvider } from 'azure-devops-ui/Utilities/Provider';
-import { orderBy } from 'lodash';
 import { TfvcLabelItem } from '../types/tfvc';
+import { VssPersona } from "azure-devops-ui/VssPersona";
 import '../styles/hub.css';
-
-function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDismiss, 3000);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
-  return <div className="toast">{message}</div>;
-}
+import { ObservableValue } from 'azure-devops-ui/Core/Observable';
+import { Toast } from "azure-devops-ui/Toast";
+import { FilterBar } from "azure-devops-ui/FilterBar";
+import { KeywordFilterBarItem } from "azure-devops-ui/TextFilterBarItem";
+import { Filter, FILTER_CHANGE_EVENT, FilterOperatorType } from "azure-devops-ui/Utilities/Filter";
+import { DropdownSelection } from "azure-devops-ui/Utilities/DropdownSelection";
 
 export function LabelsList({
   items,
@@ -36,13 +30,12 @@ export function LabelsList({
   onLoadedCount: (count: number) => void;
   loadedAll: boolean;
 }) {
-  const [filterName, setFilterName] = useState('');
-  const [filterOwner, setFilterOwner] = useState<string | undefined>();
-  const [sortBy, setSortBy] = useState<'id' | 'modifiedDate'>('modifiedDate');
-  const [sortDesc, setSortDesc] = useState(true);
-  const [isFiltering, setIsFiltering] = useState(false);
+  const [filteredItems, setFilteredItems] = useState<TfvcLabelItem[]>(items);
   const [loadedCount, setLoadedCount] = useState(initialCount);
   const [showToast, setShowToast] = useState(false);
+  const filterRef = useRef<Filter>(new Filter());
+  const toastRef: React.RefObject<Toast> = React.createRef<Toast>();
+  const ownerSelection = useRef(new DropdownSelection());
 
   useEffect(() => {
     onLoadedCount(loadedCount);
@@ -52,75 +45,148 @@ export function LabelsList({
     if (items.length > loadedCount) setLoadedCount(items.length);
   }, [items.length]);
 
-  useEffect(() => { if (loadedAll) setShowToast(true); }, [loadedAll]);
+  useEffect(() => {
+    if (loadedAll) {
+      setShowToast(true);
+      const toast = toastRef.current;
+      if (!toast) return;
+      const timer = window.setTimeout(() => {
+        toast.fadeOut().promise.then(() => {
+          setShowToast(false);
+        });
+      }, 3000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [loadedAll]);
+
+  useEffect(() => {
+    const filter = filterRef.current;
+
+    const subscription = () => {
+      // filter the items based on name and owner display name
+      const state = filterRef.current.getState();
+      const nameFilter = state.textSearch?.value;
+      const ownerFilter = state.OwnerFilter?.value;
+      console.log(`filter: ${JSON.stringify(state)}`);
+
+      setFilteredItems(items.filter((item: TfvcLabelItem) =>
+      (item.name.includes(nameFilter) &&
+        item.owner.displayName.includes(ownerFilter))
+      ));
+
+    };
+
+    filter.subscribe(subscription, FILTER_CHANGE_EVENT);
+
+    return () => {
+      filter.unsubscribe(subscription, FILTER_CHANGE_EVENT);
+    };
+  }, []);
 
   const ownerOptions: IListBoxItem[] = useMemo(() => {
     const map = new Map<string, { id: string; text: string }>();
     items.forEach(i => { if (i.owner?.id && !map.has(i.owner.id)) map.set(i.owner.id, { id: i.owner.id, text: i.owner.displayName || i.owner.uniqueName || i.owner.id }); });
-    return [{ id: 'any', text: 'Any owner' }, ...Array.from(map.values())];
+    return Array.from(map.values());
   }, [items]);
 
-  const sorted = useMemo(() => orderBy(items, [sortBy], [sortDesc ? 'desc' : 'asc']), [items, sortBy, sortDesc]);
-
-  const [pendingFilters, setPendingFilters] = useState<{ name: string; owner?: string } | null>(null);
-  useEffect(() => {
-    if (pendingFilters && loadedAll) {
-      setFilterName(pendingFilters.name);
-      setFilterOwner(pendingFilters.owner);
-      setIsFiltering(false);
-      setPendingFilters(null);
+  // Create the sorting behavior (delegate that is called when a column is sorted).
+  const sortingBehavior = new ColumnSorting<TfvcLabelItem>(
+    (
+      columnIndex: number,
+      proposedSortOrder: SortOrder,
+      event: React.KeyboardEvent<HTMLElement> | React.MouseEvent<HTMLElement>
+    ) => {
+      filteredItems.splice(
+        0,
+        items.length,
+        ...sortItems<TfvcLabelItem>(
+          columnIndex,
+          proposedSortOrder,
+          sortFunctions,
+          columns,
+          items
+        )
+      );
     }
-  }, [pendingFilters, loadedAll]);
+  );
 
-  const requestFilter = (name: string, owner?: string) => {
-    if (!loadedAll) { setIsFiltering(true); setPendingFilters({ name, owner }); }
-    else { setFilterName(name); setFilterOwner(owner); }
-  };
+  const sortFunctions = [
+    null,
+    null,
+    // Sort on Name column
+    (item1: TfvcLabelItem, item2: TfvcLabelItem): number => {
+      return item1.modifiedDate.getTime() - item2.modifiedDate.getTime();
+    },
+  ];
 
-  const filtered = useMemo(() => {
-    let v = sorted;
-    if (filterName) v = v.filter((x: TfvcLabelItem) => x.name.toLowerCase().includes(filterName.toLowerCase()));
-    if (filterOwner && filterOwner !== 'any') v = v.filter((x: TfvcLabelItem) => x.owner?.id === filterOwner);
-    return v;
-  }, [sorted, filterName, filterOwner]);
+  function onSize(event: MouseEvent | KeyboardEvent, index: number, width: number) {
+    (columns[index].width as ObservableValue<number>).value = width;
+  }
 
   const columns: ITableColumn<TfvcLabelItem>[] = [
-    { id: 'id', name: 'ID', width: 80, renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`id-${row}`}>{item?.id}</SimpleTableCell>) },
-    { id: 'name', name: 'Name', width: -40, renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`name-${row}`}>{item?.name}</SimpleTableCell>) },
-    { id: 'owner', name: 'Owner', width: 280, renderCell: (row, col, _c, item) => (
-      <SimpleTableCell columnIndex={col} key={`owner-${row}`}>
-        <Icon iconName="Contact" /> {item?.owner?.displayName || item?.owner?.uniqueName || 'Unknown'}
-      </SimpleTableCell>) },
-    { id: 'modified', name: 'Modified', width: 200, renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`mod-${row}`}>{item?.modifiedDate.toLocaleString()}</SimpleTableCell>) },
+    {
+      id: 'name',
+      name: 'Name',
+      onSize: onSize,
+      width: new ObservableValue(200),
+      renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`name-${row}`}>{item?.name}</SimpleTableCell>)
+    },
+    {
+      id: 'owner',
+      name: 'Owner',
+      onSize: onSize,
+      width: new ObservableValue(280),
+      renderCell: (row, col, _c, item) => (
+        <SimpleTableCell columnIndex={col} key={`owner-${row}`}>
+          <VssPersona identityDetailsProvider={{ getDisplayName: () => item.owner.displayName, getIdentityImageUrl: () => undefined }} size={"medium"} />{` ${item.owner.displayName}`}
+        </SimpleTableCell>),
+    },
+    {
+      id: 'modified',
+      name: 'Modified',
+      onSize: onSize,
+      width: new ObservableValue(200),
+      renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`mod-${row}`}>{item?.modifiedDate.toLocaleString()}</SimpleTableCell>),
+      sortProps: {
+        ariaLabelAscending: "Sorted low to high",
+        ariaLabelDescending: "Sorted high to low",
+      },
+    },
   ];
 
   const selection = useMemo(() => new ListSelection({ selectOnFocus: false, multiSelect: false }), []);
-  const visibleItems = filtered.slice(0, Math.max(loadedCount, 100));
-  const itemProvider = useMemo(() => new ArrayItemProvider(visibleItems), [visibleItems]);
+  const itemProvider = useMemo(() => new ArrayItemProvider(filteredItems), [filterRef.current]);
 
   return (
     <Page className="container">
       <Surface background={SurfaceBackground.neutral}>
-        <div className="filtersBar">
-          <TextField placeholder="Filter by name" value={pendingFilters?.name ?? filterName} onChange={(_e, v) => requestFilter((v as string) || '', pendingFilters?.owner ?? filterOwner)} />
-          <Dropdown placeholder="Owner" items={ownerOptions} onSelect={(_e, item) => requestFilter(pendingFilters?.name ?? filterName, item && (item as IListBoxItem).id === 'any' ? undefined : String((item as IListBoxItem)?.id))} />
-          <div className="sortBtns">
-            <Button text={`Sort: ID ${sortBy==='id'?(sortDesc?'▼':'▲'):''}`} onClick={() => { setSortBy('id'); setSortDesc(s => !s); }} />
-            <Button text={`Sort: Modified ${sortBy==='modifiedDate'?(sortDesc?'▼':'▲'):''}`} onClick={() => { setSortBy('modifiedDate'); setSortDesc(s => !s); }} />
-          </div>
-          {isFiltering && <MessageCard severity={MessageCardSeverity.Info}>Loading all items to apply filter… Loaded {items.length} items.</MessageCard>}
+        <div className="flex-grow">
+          <FilterBar filter={filterRef.current}>
+            <KeywordFilterBarItem filterItemKey="textSearch" />
+            <DropdownFilterBarItem
+              filterItemKey="OwnerFilter"
+              filter={filterRef.current}
+              items={ownerOptions}
+              selection={ownerSelection.current}
+              placeholder="Owner"
+            />
+          </FilterBar>
         </div>
 
         {!loadedAll && <Spinner size={SpinnerSize.large} />}
 
         <Table
           columns={columns}
+          role="table"
+          behaviors={[sortingBehavior]}
           itemProvider={itemProvider}
           selection={selection}
-          onActivate={(_event: any, data: any) => onSelect(visibleItems[data.rowIndex])}
         />
 
-        {showToast && <Toast message={`Loaded ${items.length} labels`} onDismiss={() => setShowToast(false)} />}
+        {showToast && <Toast
+          ref={toastRef}
+          message={`Loaded ${items.length} labels`}
+        />}
       </Surface>
     </Page>
   );
