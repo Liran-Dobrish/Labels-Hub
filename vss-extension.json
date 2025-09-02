@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "labelshub",
     "publisher": "lirandobrish",
-    "version": "0.1.14",
+    "version": "0.1.16",
     "baseUri": "http://localhost:5173",
     "name": "Labels Hub",
     "description": "A hub to browse TFVC labels in the current project.",
@@ -28,7 +28,7 @@
             ],
             "properties": {
                 "name": "Labels",
-                "uri": "dist/public/hub.html",
+                "uri": "dist/hub.html",
                 "order": 100
             }
         }

@@ -6,6 +6,7 @@
     "dev": "webpack serve --mode development",
     "clean": "rimraf dist",
     "build": "npm run clean && webpack --mode production",
+    "build:dev": "npm run clean && webpack --mode development",
     "preview": "webpack serve --mode development",
     "lint": "eslint . --ext .ts,.tsx",
     "package:vsix": "npm run build && tfx extension create --manifests ./vss-extension.json --rev-version --root ./ --output-path dist"
