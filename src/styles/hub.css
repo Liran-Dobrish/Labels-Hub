@@ -11,3 +11,5 @@
 .contentRow{display:flex;gap:8px;align-items:center;padding:4px 0}
 .mono{font-family:"Cascadia Mono",Consolas,monospace}
 .muted{color:#666}
+.ml8{margin-left:8px}
+.row-meta{align-items:center}

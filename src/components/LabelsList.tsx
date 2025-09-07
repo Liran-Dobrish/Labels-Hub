@@ -3,18 +3,17 @@ import { IListBoxItem } from 'azure-devops-ui/ListBox';
 import { Page } from 'azure-devops-ui/Page';
 import { Surface, SurfaceBackground } from 'azure-devops-ui/Surface';
 import { DropdownFilterBarItem } from 'azure-devops-ui/Dropdown';
-import { Table, ITableColumn, SimpleTableCell, SortOrder, sortItems, ColumnSorting } from 'azure-devops-ui/Table';
-import { ListSelection } from 'azure-devops-ui/List';
+import { IListItemDetails, ListItem, ListSelection, ScrollableList } from 'azure-devops-ui/List';
 import { Spinner, SpinnerSize } from 'azure-devops-ui/Spinner';
+import { Card } from 'azure-devops-ui/Card';
 import { ArrayItemProvider } from 'azure-devops-ui/Utilities/Provider';
 import { TfvcLabelItem } from '../types/tfvc';
 import { VssPersona } from "azure-devops-ui/VssPersona";
 import '../styles/hub.css';
-import { ObservableValue } from 'azure-devops-ui/Core/Observable';
 import { Toast } from "azure-devops-ui/Toast";
 import { FilterBar } from "azure-devops-ui/FilterBar";
 import { KeywordFilterBarItem } from "azure-devops-ui/TextFilterBarItem";
-import { Filter, FILTER_CHANGE_EVENT, FilterOperatorType } from "azure-devops-ui/Utilities/Filter";
+import { Filter, FILTER_CHANGE_EVENT } from "azure-devops-ui/Utilities/Filter";
 import { DropdownSelection } from "azure-devops-ui/Utilities/DropdownSelection";
 
 export function LabelsList({
@@ -24,9 +23,10 @@ export function LabelsList({
   onLoadedCount,
   loadedAll,
 }: {
+  
   items: TfvcLabelItem[];
   initialCount: number;
-  onSelect: (item: TfvcLabelItem) => void;
+  onSelect: (event: React.SyntheticEvent<HTMLElement>, item: IListBoxItem<TfvcLabelItem>) => void;
   onLoadedCount: (count: number) => void;
   loadedAll: boolean;
 }) {
@@ -65,14 +65,15 @@ export function LabelsList({
     const subscription = () => {
       // filter the items based on name and owner display name
       const state = filterRef.current.getState();
-      const nameFilter = state.textSearch?.value;
-      const ownerFilter = state.OwnerFilter?.value;
-      console.log(`filter: ${JSON.stringify(state)}`);
+      const nameFilter = (state.textSearch?.value || "").toString().toLowerCase();
+      const ownerFilter = (state.OwnerFilter?.value || "").toString().toLowerCase();
 
-      setFilteredItems(items.filter((item: TfvcLabelItem) =>
-      (item.name.includes(nameFilter) &&
-        item.owner.displayName.includes(ownerFilter))
-      ));
+      setFilteredItems(
+        items.filter((item: TfvcLabelItem) =>
+          (item.name || "").toLowerCase().includes(nameFilter) &&
+          (item.owner?.displayName || "").toLowerCase().includes(ownerFilter)
+        )
+      );
 
     };
 
@@ -83,79 +84,53 @@ export function LabelsList({
     };
   }, []);
 
-  const ownerOptions: IListBoxItem[] = useMemo(() => {
+  const ownerOptions: IListBoxItem<TfvcLabelItem>[] = useMemo(() => {
     const map = new Map<string, { id: string; text: string }>();
     items.forEach(i => { if (i.owner?.id && !map.has(i.owner.id)) map.set(i.owner.id, { id: i.owner.id, text: i.owner.displayName || i.owner.uniqueName || i.owner.id }); });
     return Array.from(map.values());
   }, [items]);
 
-  // Create the sorting behavior (delegate that is called when a column is sorted).
-  const sortingBehavior = new ColumnSorting<TfvcLabelItem>(
-    (
-      columnIndex: number,
-      proposedSortOrder: SortOrder,
-      event: React.KeyboardEvent<HTMLElement> | React.MouseEvent<HTMLElement>
-    ) => {
-      filteredItems.splice(
-        0,
-        items.length,
-        ...sortItems<TfvcLabelItem>(
-          columnIndex,
-          proposedSortOrder,
-          sortFunctions,
-          columns,
-          items
-        )
-      );
-    }
-  );
-
-  const sortFunctions = [
-    null,
-    null,
-    // Sort on Name column
-    (item1: TfvcLabelItem, item2: TfvcLabelItem): number => {
-      return item1.modifiedDate.getTime() - item2.modifiedDate.getTime();
-    },
-  ];
-
-  function onSize(event: MouseEvent | KeyboardEvent, index: number, width: number) {
-    (columns[index].width as ObservableValue<number>).value = width;
-  }
-
-  const columns: ITableColumn<TfvcLabelItem>[] = [
-    {
-      id: 'name',
-      name: 'Name',
-      onSize: onSize,
-      width: new ObservableValue(200),
-      renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`name-${row}`}>{item?.name}</SimpleTableCell>)
-    },
-    {
-      id: 'owner',
-      name: 'Owner',
-      onSize: onSize,
-      width: new ObservableValue(280),
-      renderCell: (row, col, _c, item) => (
-        <SimpleTableCell columnIndex={col} key={`owner-${row}`}>
-          <VssPersona identityDetailsProvider={{ getDisplayName: () => item.owner.displayName, getIdentityImageUrl: () => undefined }} size={"medium"} />{` ${item.owner.displayName}`}
-        </SimpleTableCell>),
-    },
-    {
-      id: 'modified',
-      name: 'Modified',
-      onSize: onSize,
-      width: new ObservableValue(200),
-      renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`mod-${row}`}>{item?.modifiedDate.toLocaleString()}</SimpleTableCell>),
-      sortProps: {
-        ariaLabelAscending: "Sorted low to high",
-        ariaLabelDescending: "Sorted high to low",
-      },
-    },
-  ];
+  // Re-compute filtered items whenever items change to respect current filters
+  useEffect(() => {
+    const state = filterRef.current.getState();
+    const nameFilter = (state.textSearch?.value || "").toString().toLowerCase();
+    const ownerFilter = (state.OwnerFilter?.value || "").toString().toLowerCase();
+    setFilteredItems(
+      items.filter((item: TfvcLabelItem) =>
+        (item.name || "").toLowerCase().includes(nameFilter) &&
+        (item.owner?.displayName || "").toLowerCase().includes(ownerFilter)
+      )
+    );
+  }, [items]);
 
   const selection = useMemo(() => new ListSelection({ selectOnFocus: false, multiSelect: false }), []);
-  const itemProvider = useMemo(() => new ArrayItemProvider(filteredItems), [filterRef.current]);
+  const itemProvider = useMemo(() => new ArrayItemProvider(filteredItems), [filteredItems]);
+
+  const renderRow = (index: number, item: TfvcLabelItem, details: IListItemDetails<TfvcLabelItem>, key?: string) => {
+    if (!item) return null;
+    const ownerName = item.owner?.displayName || item.owner?.uniqueName || "";
+    const dateText = item.modifiedDate ? item.modifiedDate.toLocaleString() : "";
+    return (
+      <ListItem key={key || "list-item" + index} index={index} details={details}
+        className="bolt-list-row flex-row size-56">
+        <div className="bolt-list-cell flex-column text-ellipsis" >
+          <div className="text-ellipsis bolt-font-weight-semibold">{item.name}</div>
+          <div className="text-ellipsis secondary-text flex-row flex-center row-meta">
+            <span className="ml8">{item.id}</span>
+            <VssPersona
+              size="small"
+              identityDetailsProvider={{
+                getDisplayName: () => ownerName,
+                getIdentityImageUrl: () => undefined,
+              }}
+            />
+            <span className="ml8">{ownerName}</span>
+            <span className="muted ml8">{dateText}</span>
+          </div>
+        </div>
+      </ListItem>
+    );
+  };
 
   return (
     <Page className="container">
@@ -168,21 +143,21 @@ export function LabelsList({
               filter={filterRef.current}
               items={ownerOptions}
               selection={ownerSelection.current}
+              onSelect={onSelect}
               placeholder="Owner"
             />
           </FilterBar>
         </div>
 
         {!loadedAll && <Spinner size={SpinnerSize.large} />}
-
-        <Table
-          columns={columns}
-          role="table"
-          behaviors={[sortingBehavior]}
-          itemProvider={itemProvider}
-          selection={selection}
-        />
-
+        <Card className="flex-grow bolt-table-card">
+          <ScrollableList
+            itemProvider={itemProvider}
+            selection={selection}
+            renderRow={renderRow}
+            width='100%'
+          />
+        </Card>
         {showToast && <Toast
           ref={toastRef}
           message={`Loaded ${items.length} labels`}

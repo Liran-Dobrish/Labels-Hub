@@ -63,7 +63,7 @@ export default function Hub() {
       <Header title="Labels"
         description={"A hub to browse TFVC labels in the current project."}
         titleSize={TitleSize.Large} />
-      <LabelsList items={all} initialCount={Math.min(100, all.length)} onSelect={(i) => setSelected(i)} onLoadedCount={() => { }} loadedAll={loadedAll} />
+      <LabelsList items={all} initialCount={Math.min(100, all.length)} onSelect={(ev,i) => setSelected(i.data??null)} onLoadedCount={() => { }} loadedAll={loadedAll} />
     </Page>
   );
 }
