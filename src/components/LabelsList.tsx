@@ -3,7 +3,7 @@ import { IListBoxItem } from 'azure-devops-ui/ListBox';
 import { Page } from 'azure-devops-ui/Page';
 import { Surface, SurfaceBackground } from 'azure-devops-ui/Surface';
 import { DropdownFilterBarItem } from 'azure-devops-ui/Dropdown';
-import { Table, ITableColumn, SimpleTableCell, SortOrder, sortItems, ColumnSorting } from 'azure-devops-ui/Table';
+import { Table, ITableColumn, SimpleTableCell, SortOrder, sortItems, ColumnSorting, ITableRow } from 'azure-devops-ui/Table';
 import { ListSelection } from 'azure-devops-ui/List';
 import { Spinner, SpinnerSize } from 'azure-devops-ui/Spinner';
 import { ArrayItemProvider } from 'azure-devops-ui/Utilities/Provider';
@@ -11,7 +11,6 @@ import { TfvcLabelItem } from '../types/tfvc';
 import { VssPersona } from "azure-devops-ui/VssPersona";
 import '../styles/hub.css';
 import { ObservableValue } from 'azure-devops-ui/Core/Observable';
-import { Toast } from "azure-devops-ui/Toast";
 import { FilterBar } from "azure-devops-ui/FilterBar";
 import { KeywordFilterBarItem } from "azure-devops-ui/TextFilterBarItem";
 import { Filter, FILTER_CHANGE_EVENT, FilterOperatorType } from "azure-devops-ui/Utilities/Filter";
@@ -26,15 +25,13 @@ export function LabelsList({
 }: {
   items: TfvcLabelItem[];
   initialCount: number;
-  onSelect: (item: TfvcLabelItem) => void;
+  onSelect: (event: React.SyntheticEvent<HTMLElement>, tableRow: ITableRow<TfvcLabelItem>) => void;
   onLoadedCount: (count: number) => void;
   loadedAll: boolean;
 }) {
   const [filteredItems, setFilteredItems] = useState<TfvcLabelItem[]>(items);
   const [loadedCount, setLoadedCount] = useState(initialCount);
-  const [showToast, setShowToast] = useState(false);
   const filterRef = useRef<Filter>(new Filter());
-  const toastRef: React.RefObject<Toast> = React.createRef<Toast>();
   const ownerSelection = useRef(new DropdownSelection());
 
   useEffect(() => {
@@ -45,47 +42,51 @@ export function LabelsList({
     if (items.length > loadedCount) setLoadedCount(items.length);
   }, [items.length]);
 
-  useEffect(() => {
-    if (loadedAll) {
-      setShowToast(true);
-      const toast = toastRef.current;
-      if (!toast) return;
-      const timer = window.setTimeout(() => {
-        toast.fadeOut().promise.then(() => {
-          setShowToast(false);
-        });
-      }, 3000);
-      return () => window.clearTimeout(timer);
-    }
-  }, [loadedAll]);
-
+  //filter
   useEffect(() => {
     const filter = filterRef.current;
 
-    const subscription = () => {
+    const filterSubscription = () => {
       // filter the items based on name and owner display name
       const state = filterRef.current.getState();
       const nameFilter = state.textSearch?.value;
       const ownerFilter = state.OwnerFilter?.value;
       console.log(`filter: ${JSON.stringify(state)}`);
 
-      setFilteredItems(items.filter((item: TfvcLabelItem) =>
-      (item.name.includes(nameFilter) &&
-        item.owner.displayName.includes(ownerFilter))
-      ));
+      let filteredItems: TfvcLabelItem[] = [];
+      if (nameFilter !== undefined && nameFilter !== "") {
+        filteredItems = items.filter((item: TfvcLabelItem) =>
+          (item.name.includes(nameFilter)));
+      }
 
+      if (ownerFilter !== undefined && ownerFilter !== "") {
+        items.forEach((item: TfvcLabelItem) => {
+          if (filteredItems.indexOf(item) === -1 && item.owner.displayName.includes(ownerFilter)) {
+            filteredItems.push(item);
+          }
+        });
+      }
+
+      // fiter was cleared
+      if ((nameFilter === undefined || nameFilter === "") && (ownerFilter === undefined || ownerFilter === "")) {
+        filteredItems = items;
+      }
+
+      setFilteredItems(filteredItems);
     };
 
-    filter.subscribe(subscription, FILTER_CHANGE_EVENT);
+    filter.subscribe(filterSubscription, FILTER_CHANGE_EVENT);
+    console.log(`filter subscribed`);
 
     return () => {
-      filter.unsubscribe(subscription, FILTER_CHANGE_EVENT);
+      filter.unsubscribe(filterSubscription, FILTER_CHANGE_EVENT);
+      console.log(`filter unsubscribed`);
     };
   }, []);
 
   const ownerOptions: IListBoxItem[] = useMemo(() => {
     const map = new Map<string, { id: string; text: string }>();
-    items.forEach(i => { if (i.owner?.id && !map.has(i.owner.id)) map.set(i.owner.id, { id: i.owner.id, text: i.owner.displayName || i.owner.uniqueName || i.owner.id }); });
+    items.forEach(i => { if (i.owner?.id && !map.has(i.owner.id)) map.set(i.owner.id, { id: i.owner.displayName || i.owner.uniqueName || i.owner.id, text: i.owner.displayName || i.owner.uniqueName || i.owner.id }); });
     return Array.from(map.values());
   }, [items]);
 
@@ -155,7 +156,7 @@ export function LabelsList({
   ];
 
   const selection = useMemo(() => new ListSelection({ selectOnFocus: false, multiSelect: false }), []);
-  const itemProvider = useMemo(() => new ArrayItemProvider(filteredItems), [filterRef.current]);
+  const itemProvider = useMemo(() => new ArrayItemProvider(filteredItems), [filteredItems]);
 
   return (
     <Page className="container">
@@ -181,12 +182,10 @@ export function LabelsList({
           behaviors={[sortingBehavior]}
           itemProvider={itemProvider}
           selection={selection}
+          onSelect={(ev, tr) => {
+            console.log(tr.data.name);
+          }}
         />
-
-        {showToast && <Toast
-          ref={toastRef}
-          message={`Loaded ${items.length} labels`}
-        />}
       </Surface>
     </Page>
   );
