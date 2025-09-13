@@ -184,6 +184,7 @@ export function LabelsList({
           selection={selection}
           onSelect={(ev, tr) => {
             console.log(tr.data.name);
+            onSelect(ev, tr);
           }}
         />
       </Surface>
