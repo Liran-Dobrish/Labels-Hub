@@ -11,3 +11,7 @@
 .contentRow{display:flex;gap:8px;align-items:center;padding:4px 0}
 .mono{font-family:"Cascadia Mono",Consolas,monospace}
 .muted{color:#666}
+.col-name{flex:1 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bolt-table-card {
+    width: 100%;
+}

@@ -1,35 +1,21 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Page } from 'azure-devops-ui/Page';
-import { Surface, SurfaceBackground } from 'azure-devops-ui/Surface';
 import { TextField } from 'azure-devops-ui/TextField';
 import { MessageCard, MessageCardSeverity } from 'azure-devops-ui/MessageCard';
-import { Button } from 'azure-devops-ui/Button';
-import { TfvcItemRef, TfvcLabelItem } from '../types/tfvc';
-import { buildTree, fetchLabelItemsAll, TreeNode } from '../services/tfvcService';
+import { fetchLabelItemsAll } from '../services/tfvcService';
 import '../styles/hub.css';
+import { Tree } from 'azure-devops-ui/TreeEx';
+import { TfvcItem, TfvcLabelRef } from 'azure-devops-extension-api/Tfvc';
+import { Header, TitleSize } from 'azure-devops-ui/Header';
+import { Card } from 'azure-devops-ui/Card';
 
-function TreeView({ node, selectedPath, onSelect }: { node: TreeNode; selectedPath: string; onSelect: (p: string) => void }) {
-  const entries = Array.from(node.children || new Map()).sort((a, b) => a[0].localeCompare(b[0]));
-  return (
-    <ul className="tree">
-      {entries.map(([name, child]) => (
-        <li key={child.path}>
-          <button className={`treeItem ${selectedPath === child.path ? 'selected' : ''}`} onClick={() => onSelect(child.path)}>
-            {child.isFolder ? '📁' : '📄'} {name}
-          </button>
-          {child.children && child.children.size > 0 && selectedPath.startsWith(child.path) && child.isFolder && (
-            <TreeView node={child} selectedPath={selectedPath} onSelect={onSelect} />
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
 
-export function LabelDetails({ label, onBack }: { label: TfvcLabelItem; onBack: () => void }) {
+export function LabelDetails({ label, onBack }: { label: TfvcLabelRef; onBack: () => void }) {
   const [description, setDescription] = useState(label.description || '');
-  const [items, setItems] = useState<TfvcItemRef[] | null>(null);
-  const [selectedPath, setSelectedPath] = useState('$/');
+  const [items, setItems] = useState<TfvcItem[] | null>(null);
+  const [selected, setSelected] = useState<string>('$/');
+  const [expanded, setExpanded] = useState<string[]>(['$/']);
 
   useEffect(() => {
     let disposed = false;
@@ -44,10 +30,26 @@ export function LabelDetails({ label, onBack }: { label: TfvcLabelItem; onBack: 
     return () => { disposed = true; };
   }, [label.id]);
 
-  const tree = useMemo(() => (items ? buildTree(items) : null), [items]);
+  // Convert TreeNode to ITreeItem[] recursively
+  // const treeItems = useMemo(() => {
+  //   if (!items) return [];
+  //   const tree = buildTree(items);
+  //   function toTreeItem(node: TreeNode): ITreeItem {
+  //     return {
+  //       id: node.path,
+  //       text: node.name,
+  //       isFolder: node.isFolder,
+  //       children: node.children ? Array.from(node.children.values()).map(toTreeItem) : [],
+  //       iconProps: { iconName: node.isFolder ? 'FabricFolderFill' : 'FileCode' },
+  //     };
+  //   }
+  //   return [toTreeItem(tree)];
+  // }, [items]);
+
+  // Find children for selected folder
   const childrenInSelected = useMemo(() => {
-    if (!items) return [] as TfvcItemRef[];
-    const normalized = selectedPath.endsWith('/') ? selectedPath : selectedPath + '/';
+    if (!items) return [] as TfvcItem[];
+    const normalized = selected.endsWith('/') ? selected : selected + '/';
     const direct = items.filter(i => {
       const p = (i.path || '').replace(/^\$\/?/, '$/');
       if (!p.startsWith(normalized)) return false;
@@ -55,43 +57,61 @@ export function LabelDetails({ label, onBack }: { label: TfvcLabelItem; onBack: 
       return rest.length > 0 && !rest.includes('/') && !rest.includes('\\');
     });
     return direct.sort((a, b) => Number(b.isFolder) - Number(a.isFolder) || (a.path || '').localeCompare(b.path || ''));
-  }, [items, selectedPath]);
+  }, [items, selected]);
+
+  // Tree selection/expansion handlers
+  // const onSelect = (event: React.MouseEvent<HTMLElement>, item: ITreeItem) => {
+  //   setSelected(item.id);
+  // };
+  // const onExpandCollapse = (item: ITreeItem, expanded: boolean) => {
+  //   setExpanded(prev => {
+  //     if (expanded) return Array.from(new Set([...prev, item.id]));
+  //     return prev.filter(id => id !== item.id);
+  //   });
+  // };
 
   return (
-    <Page className="container">
-      <Surface background={SurfaceBackground.neutral}>
-        <div className="headerRow">
-          <Button text="Back" onClick={onBack} />
-          <h2 className="titleNoMargin">{label.name}</h2>
-        </div>
+    <>
+      {/* <div className="descBlock">
+        <TextField value={description} onChange={(_e, v) => setDescription((v as string) || '')} multiline />
+      </div>
 
-        <div className="descBlock">
-          <TextField value={description} onChange={(_e, v) => setDescription((v as string) || '')} multiline />
+      <div className="detailsSplit">
+        <div className="treePane">
+          <h4>Label folders</h4>
+          {!items && <MessageCard severity={MessageCardSeverity.Info}>Loading label items…</MessageCard>}
+          {items && (
+            <Tree
+              items={treeItems}
+              selectionMode={TreeSelectionMode.Single}
+              expandCollapseMode={TreeExpandCollapseMode.Multiple}
+              selectedItemIds={[selected]}
+              expandedItemIds={expanded}
+              onSelect={onSelect}
+              onExpandCollapse={onExpandCollapse}
+              getItemHasChildren={(item: ITreeItem) => !!item.children && item.children.length > 0}
+              getItemIsFolder={(item: ITreeItem) => !!item.isFolder}
+              getItemText={(item: ITreeItem) => item.text}
+              getItemIconProps={(item: ITreeItem) => item.iconProps}
+            />
+          )}
         </div>
-
-        <div className="detailsSplit">
-          <div className="treePane">
-            <h4>Label folders</h4>
-            {!tree && <MessageCard severity={MessageCardSeverity.Info}>Loading label items…</MessageCard>}
-            {tree && <TreeView node={tree} selectedPath={selectedPath} onSelect={setSelectedPath} />}
-          </div>
-          <div className="contentPane">
-            <h4>Folder contents: {selectedPath}</h4>
-            {!items && <MessageCard severity={MessageCardSeverity.Info}>Loading…</MessageCard>}
-            {items && (
-              <ul className="contentList">
-                {childrenInSelected.map(i => (
-                  <li key={i.path} className="contentRow">
-                    <span className="mono">{i.isFolder ? '📁' : '📄'}</span>
-                    <span>{(i.path || '').split('/').pop()}</span>
-                  </li>
-                ))}
-                {childrenInSelected.length === 0 && <li className="muted">(Empty)</li>}
-              </ul>
-            )}
-          </div>
+        <div className="contentPane">
+          <h4>Folder contents: {selected}</h4>
+          {!items && <MessageCard severity={MessageCardSeverity.Info}>Loading…</MessageCard>}
+          {items && (
+            <ul className="contentList">
+              {childrenInSelected.map(i => (
+                <li key={i.path} className="contentRow">
+                  <span className="mono">{i.isFolder ? '📁' : '📄'}</span>
+                  <span>{(i.path || '').split('/').pop()}</span>
+                </li>
+              ))}
+              {childrenInSelected.length === 0 && <li className="muted">(Empty)</li>}
+            </ul>
+          )}
         </div>
-      </Surface>
-    </Page>
+      </div> */}
+    </>
   );
 }

@@ -1,3 +1,4 @@
+import '../styles/hub.css';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IListBoxItem } from 'azure-devops-ui/ListBox';
 import { Page } from 'azure-devops-ui/Page';
@@ -7,14 +8,14 @@ import { Table, ITableColumn, SimpleTableCell, SortOrder, sortItems, ColumnSorti
 import { ListSelection } from 'azure-devops-ui/List';
 import { Spinner, SpinnerSize } from 'azure-devops-ui/Spinner';
 import { ArrayItemProvider } from 'azure-devops-ui/Utilities/Provider';
-import { TfvcLabelItem } from '../types/tfvc';
 import { VssPersona } from "azure-devops-ui/VssPersona";
-import '../styles/hub.css';
 import { ObservableValue } from 'azure-devops-ui/Core/Observable';
 import { FilterBar } from "azure-devops-ui/FilterBar";
 import { KeywordFilterBarItem } from "azure-devops-ui/TextFilterBarItem";
 import { Filter, FILTER_CHANGE_EVENT, FilterOperatorType } from "azure-devops-ui/Utilities/Filter";
 import { DropdownSelection } from "azure-devops-ui/Utilities/DropdownSelection";
+import { TfvcLabelRef } from 'azure-devops-extension-api/Tfvc';
+import { Card } from 'azure-devops-ui/Card';
 
 export function LabelsList({
   items,
@@ -23,13 +24,13 @@ export function LabelsList({
   onLoadedCount,
   loadedAll,
 }: {
-  items: TfvcLabelItem[];
+  items: TfvcLabelRef[];
   initialCount: number;
-  onSelect: (event: React.SyntheticEvent<HTMLElement>, tableRow: ITableRow<TfvcLabelItem>) => void;
+  onSelect: (event: React.SyntheticEvent<HTMLElement>, tableRow: ITableRow<TfvcLabelRef>) => void;
   onLoadedCount: (count: number) => void;
   loadedAll: boolean;
 }) {
-  const [filteredItems, setFilteredItems] = useState<TfvcLabelItem[]>(items);
+  const [filteredItems, setFilteredItems] = useState<TfvcLabelRef[]>(items);
   const [loadedCount, setLoadedCount] = useState(initialCount);
   const filterRef = useRef<Filter>(new Filter());
   const ownerSelection = useRef(new DropdownSelection());
@@ -53,14 +54,14 @@ export function LabelsList({
       const ownerFilter = state.OwnerFilter?.value;
       console.log(`filter: ${JSON.stringify(state)}`);
 
-      let filteredItems: TfvcLabelItem[] = [];
+      let filteredItems: TfvcLabelRef[] = [];
       if (nameFilter !== undefined && nameFilter !== "") {
-        filteredItems = items.filter((item: TfvcLabelItem) =>
+        filteredItems = items.filter((item: TfvcLabelRef) =>
           (item.name.includes(nameFilter)));
       }
 
       if (ownerFilter !== undefined && ownerFilter !== "") {
-        items.forEach((item: TfvcLabelItem) => {
+        items.forEach((item: TfvcLabelRef) => {
           if (filteredItems.indexOf(item) === -1 && item.owner.displayName.includes(ownerFilter)) {
             filteredItems.push(item);
           }
@@ -91,7 +92,7 @@ export function LabelsList({
   }, [items]);
 
   // Create the sorting behavior (delegate that is called when a column is sorted).
-  const sortingBehavior = new ColumnSorting<TfvcLabelItem>(
+  const sortingBehavior = new ColumnSorting<TfvcLabelRef>(
     (
       columnIndex: number,
       proposedSortOrder: SortOrder,
@@ -100,7 +101,7 @@ export function LabelsList({
       filteredItems.splice(
         0,
         items.length,
-        ...sortItems<TfvcLabelItem>(
+        ...sortItems<TfvcLabelRef>(
           columnIndex,
           proposedSortOrder,
           sortFunctions,
@@ -115,28 +116,35 @@ export function LabelsList({
     null,
     null,
     // Sort on Name column
-    (item1: TfvcLabelItem, item2: TfvcLabelItem): number => {
+    (item1: TfvcLabelRef, item2: TfvcLabelRef): number => {
       return item1.modifiedDate.getTime() - item2.modifiedDate.getTime();
     },
   ];
 
   function onSize(event: MouseEvent | KeyboardEvent, index: number, width: number) {
-    (columns[index].width as ObservableValue<number>).value = width;
+    // Enforce minimum widths
+    const mins = [350, 330, 220];
+    const min = mins[index] ?? 100;
+    const applied = Math.max(width, min);
+    (columns[index].width as ObservableValue<number>).value = applied;
   }
 
-  const columns: ITableColumn<TfvcLabelItem>[] = [
+  const columns: ITableColumn<TfvcLabelRef>[] = [
     {
       id: 'name',
       name: 'Name',
       onSize: onSize,
-      width: new ObservableValue(200),
-      renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`name-${row}`}>{item?.name}</SimpleTableCell>)
+      width: new ObservableValue(-350),
+      renderCell: (row, col, _c, item) => (
+        <SimpleTableCell columnIndex={col} key={`name-${row}`}>
+          {item?.name}
+        </SimpleTableCell>)
     },
     {
       id: 'owner',
       name: 'Owner',
       onSize: onSize,
-      width: new ObservableValue(280),
+      width: new ObservableValue(330),
       renderCell: (row, col, _c, item) => (
         <SimpleTableCell columnIndex={col} key={`owner-${row}`}>
           <VssPersona identityDetailsProvider={{ getDisplayName: () => item.owner.displayName, getIdentityImageUrl: () => undefined }} size={"medium"} />{` ${item.owner.displayName}`}
@@ -146,7 +154,7 @@ export function LabelsList({
       id: 'modified',
       name: 'Modified',
       onSize: onSize,
-      width: new ObservableValue(200),
+      width: new ObservableValue(220),
       renderCell: (row, col, _c, item) => (<SimpleTableCell columnIndex={col} key={`mod-${row}`}>{item?.modifiedDate.toLocaleString()}</SimpleTableCell>),
       sortProps: {
         ariaLabelAscending: "Sorted low to high",
@@ -159,23 +167,20 @@ export function LabelsList({
   const itemProvider = useMemo(() => new ArrayItemProvider(filteredItems), [filteredItems]);
 
   return (
-    <Page className="container">
-      <Surface background={SurfaceBackground.neutral}>
-        <div className="flex-grow">
-          <FilterBar filter={filterRef.current}>
-            <KeywordFilterBarItem filterItemKey="textSearch" />
-            <DropdownFilterBarItem
-              filterItemKey="OwnerFilter"
-              filter={filterRef.current}
-              items={ownerOptions}
-              selection={ownerSelection.current}
-              placeholder="Owner"
-            />
-          </FilterBar>
-        </div>
-
+    <>
+      <div className="flex-grow">
+        <FilterBar filter={filterRef.current}>
+          <KeywordFilterBarItem filterItemKey="textSearch" />
+          <DropdownFilterBarItem
+            filterItemKey="OwnerFilter"
+            filter={filterRef.current}
+            items={ownerOptions}
+            selection={ownerSelection.current}
+            placeholder="Owner"
+          />
+        </FilterBar>
+        
         {!loadedAll && <Spinner size={SpinnerSize.large} />}
-
         <Table
           columns={columns}
           role="table"
@@ -187,7 +192,7 @@ export function LabelsList({
             onSelect(ev, tr);
           }}
         />
-      </Surface>
-    </Page>
+      </div>
+    </>
   );
 }

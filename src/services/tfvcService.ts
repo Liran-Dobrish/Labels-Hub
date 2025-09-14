@@ -1,7 +1,6 @@
 import * as SDK from 'azure-devops-extension-sdk';
 import { getClient } from 'azure-devops-extension-api';
-import { TfvcRestClient, TfvcLabelRef } from 'azure-devops-extension-api/Tfvc';
-import { TfvcLabelItem, TfvcItemRef } from '../types/tfvc';
+import { TfvcRestClient, TfvcLabelRef, TfvcItem } from 'azure-devops-extension-api/Tfvc';
 
 export async function getTfvcClient(): Promise<TfvcRestClient> {
     return getClient(TfvcRestClient);
@@ -12,12 +11,12 @@ export async function getProjectInfo() {
     return { projectId: project?.id as string, projectName: project?.name as string };
 }
 
-export async function fetchAllLabels(batchSize = 200): Promise<TfvcLabelItem[]> {
+export async function fetchAllLabels(batchSize = 200): Promise<TfvcLabelRef[]> {
     const tfvc = await getTfvcClient();
     const { projectName } = await getProjectInfo();
 
     let skip = 0;
-    const all: TfvcLabelItem[] = [];
+    const all: TfvcLabelRef[] = [];
     for (; ;) {
         const page = await tfvc.getLabels({ includeLinks: false, itemLabelFilter: undefined as any, labelScope: undefined as any, maxItemCount: undefined as any, name: undefined as any, owner: undefined as any }, projectName, batchSize, skip);
         const items = (page || []).map((l: TfvcLabelRef) => ({
@@ -26,7 +25,7 @@ export async function fetchAllLabels(batchSize = 200): Promise<TfvcLabelItem[]> 
             description: l.description || '',
             owner: l.owner!,
             modifiedDate: l.modifiedDate!,
-        } as TfvcLabelItem));
+        } as TfvcLabelRef));
         all.push(...items);
         if (!items.length) break;
         skip += items.length;
@@ -34,7 +33,7 @@ export async function fetchAllLabels(batchSize = 200): Promise<TfvcLabelItem[]> 
     return all;
 }
 
-export async function fetchLabelsFirst(top: number = 100): Promise<TfvcLabelItem[]> {
+export async function fetchLabelsFirst(top: number = 100): Promise<TfvcLabelRef[]> {
     const tfvc = await getTfvcClient();
     const { projectName } = await getProjectInfo();
     const page = await tfvc.getLabels({ includeLinks: false, itemLabelFilter: undefined as any, labelScope: undefined as any, maxItemCount: undefined as any, name: undefined as any, owner: undefined as any }, projectName, top, 0);
@@ -44,13 +43,16 @@ export async function fetchLabelsFirst(top: number = 100): Promise<TfvcLabelItem
         description: l.description || '',
         owner: l.owner!,
         modifiedDate: l.modifiedDate!,
+        _links: [],
+        labelScope: "",
+        url: ""
     }));
 }
 
 export async function fetchLabelItemsAll(labelId: string, pageSize = 200) {
     const tfvc = await getTfvcClient();
     let skip = 0;
-    const all: TfvcItemRef[] = [];
+    const all: TfvcItem[] = [];
     for (; ;) {
         const page = await tfvc.getLabelItems(labelId, pageSize, skip);
         const items = page || [];
@@ -63,7 +65,7 @@ export async function fetchLabelItemsAll(labelId: string, pageSize = 200) {
 
 export type TreeNode = { name: string; path: string; isFolder: boolean; children?: Map<string, TreeNode> };
 
-export function buildTree(items: TfvcItemRef[]): TreeNode {
+export function buildTree(items: TfvcItem[]): TreeNode {
     const root: TreeNode = { name: '$', path: '$/', isFolder: true, children: new Map() };
     for (const it of items) {
         const path = it.path || '';

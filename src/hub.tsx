@@ -9,16 +9,17 @@ import { Page } from 'azure-devops-ui/Page';
 import { Header, TitleSize } from "azure-devops-ui/Header";
 import { Surface, SurfaceBackground } from 'azure-devops-ui/Surface';
 import { fetchAllLabels, fetchLabelsFirst } from './services/tfvcService';
-import { TfvcLabelItem } from './types/tfvc';
 import { LabelsList } from './components/LabelsList';
 import { LabelDetails } from './components/LabelDetails';
 import { ITableRow } from 'azure-devops-ui/Table';
 import { Toast } from "azure-devops-ui/Toast";
+import { TfvcLabelRef } from 'azure-devops-extension-api/Tfvc';
+import { Card } from 'azure-devops-ui/Card';
 
 export default function Hub() {
-  const [allItems, setAllItems] = useState<TfvcLabelItem[]>([]);
+  const [allItems, setAllItems] = useState<TfvcLabelRef[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<TfvcLabelItem | null>(null);
+  const [selected, setSelected] = useState<TfvcLabelRef | null>(null);
   const [loadedAll, setLoadedAll] = useState(false);
   const [SDKLoaded, setSDKLoaded] = useState(false);
 
@@ -51,7 +52,7 @@ export default function Hub() {
       if (SDKLoaded) {
         try {
           console.log("Fetching all labels...");
-          const full = await fetchAllLabels(500);
+          const full: TfvcLabelRef[] = await fetchAllLabels(500);
           setAllItems(full);
           setLoadedAll(true);
           console.log(`Loaded ${full.length} labels`);
@@ -82,21 +83,37 @@ export default function Hub() {
         console.log(`timer cleared ${timer}`);
       };
     }
-  }, [isToastVisible,SDKLoaded]);
+  }, [isToastVisible, SDKLoaded]);
 
   if (loading) return (<Page className="container"><Surface background={SurfaceBackground.neutral}><Spinner size={SpinnerSize.large} /></Surface></Page>);
 
   if (selected) {
-    return <LabelDetails label={selected} onBack={() => setSelected(null)} />;
+    return (
+      <Page className="flex-grow full-width">
+        <Header
+          title={selected.name}
+          titleSize={TitleSize.Medium}
+          backButtonProps={{ onClick: () => setSelected(null) }}
+          titleAriaLevel={3}
+        />
+
+        <div className="page-content page-content-top">
+          <Card>
+            <LabelDetails label={selected} onBack={() => setSelected(null)} />
+          </Card>
+        </div>
+      </Page>
+    );
   }
 
   return (
-    <Page className="flex-grow">
+    <Page className="flex-grow full-width">
       <Header title="Labels"
         description={"A hub to browse TFVC labels in the current project."}
         titleSize={TitleSize.Large} />
-      <LabelsList items={allItems} initialCount={Math.min(100, allItems.length)} onSelect={(event: React.SyntheticEvent<HTMLElement>, tableRow: ITableRow<TfvcLabelItem>) => setSelected(tableRow.data)} onLoadedCount={() => { }} loadedAll={loadedAll} />
-
+      <Card className="flex-grow bolt-table-card" contentProps={{ contentPadding: false }}>
+        <LabelsList items={allItems} initialCount={Math.min(100, allItems.length)} onSelect={(event: React.SyntheticEvent<HTMLElement>, tableRow: ITableRow<TfvcLabelRef>) => setSelected(tableRow.data)} onLoadedCount={() => { }} loadedAll={loadedAll} />
+      </Card>
       {isToastVisible && <Toast
         ref={toastRef}
         message={`Loaded ${allItems.length} labels`}
